@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { SpecialEffectOverlay } from "./components/SpecialEffectOverlay";
+import { DocumentArtifactSidebar } from "./components/DocumentArtifactSidebar";
 import { Session, Message } from "./types";
 import { ShieldAlert, Info, HelpCircle } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 
 import allMightBg from "./assets/images/all_might_bg_1783057030750.jpg";
 import allMightAvatar from "./assets/images/all_might_avatar_1783057045442.jpg";
@@ -116,6 +118,21 @@ export default function App() {
   const handleChangeModel = (model: "ofa_100" | "ofa_50" | "ofa_120") => {
     setSelectedModel(model);
     localStorage.setItem("all_might_selected_model", model);
+  };
+
+  // Claude-style Document Artifact Center Sidebar States
+  const [activeArtifact, setActiveArtifact] = useState<{ title: string; content: string; language?: string } | null>(null);
+  const [isArtifactOpen, setIsArtifactOpen] = useState<boolean>(false);
+
+  const handleOpenArtifact = (title: string, content: string, language?: string) => {
+    setActiveArtifact({ title, content, language });
+    setIsArtifactOpen(true);
+  };
+
+  const handleSaveDocument = (updatedContent: string) => {
+    if (activeArtifact) {
+      setActiveArtifact((prev) => prev ? { ...prev, content: updatedContent } : null);
+    }
   };
 
   // Common fetch utility for LLM interaction (supports selected model & custom system prompts)
@@ -438,8 +455,28 @@ export default function App() {
           onChangeModel={handleChangeModel}
           customInstructions={customInstructions}
           onSaveCustomInstructions={handleSaveCustomInstructions}
+          onOpenArtifact={handleOpenArtifact}
         />
       </main>
+
+      {/* Claude-style Document Sandbox Artifact Sidebar */}
+      <AnimatePresence>
+        {isArtifactOpen && (
+          <>
+            {/* Backdrop for click-to-close on smaller screens */}
+            <div
+              onClick={() => setIsArtifactOpen(false)}
+              className="fixed inset-0 bg-black/60 z-30 backdrop-blur-xs md:hidden cursor-pointer animate-fadeIn"
+            />
+            <DocumentArtifactSidebar
+              isOpen={isArtifactOpen}
+              onClose={() => setIsArtifactOpen(false)}
+              documentData={activeArtifact}
+              onSaveDocument={handleSaveDocument}
+            />
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

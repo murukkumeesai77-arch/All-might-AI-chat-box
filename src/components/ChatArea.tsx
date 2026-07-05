@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   Send, Sparkles, Zap, ShieldAlert, CornerDownLeft, Volume2, Menu, Copy, Check, 
   Settings, Download, Sliders, VolumeX, Edit3, Save, ThumbsUp, ThumbsDown, RefreshCw, X, MessageSquare, Info, Mic, MicOff, Paperclip, Image as ImageIcon,
-  FileText, Headphones
+  FileText, Headphones, Code2, ChevronDown, ChevronUp, Terminal, Activity, Cpu, BookOpen
 } from "lucide-react";
 import { Message } from "../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -28,6 +28,7 @@ interface ChatAreaProps {
   onChangeModel: (model: "ofa_100" | "ofa_50" | "ofa_120") => void;
   customInstructions: string;
   onSaveCustomInstructions: (instructions: string) => void;
+  onOpenArtifact: (title: string, content: string, language?: string) => void;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -45,6 +46,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onChangeModel,
   customInstructions,
   onSaveCustomInstructions,
+  onOpenArtifact,
 }) => {
   const [inputText, setInputText] = useState("");
   const [activeAttack, setActiveAttack] = useState<"detroit_smash" | "united_states" | null>(null);
@@ -55,6 +57,72 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Claude-style advanced interactive thinking state
+  const [thinkingStep, setThinkingStep] = useState<number>(0);
+  const [thinkingLogs, setThinkingLogs] = useState<Array<{ text: string; category: "system" | "parsing" | "codegen" | "quality"; delay: number; status: "completed" | "active" | "pending" }>>([]);
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState<boolean>(true);
+  const [thinkingLogFilter, setThinkingLogFilter] = useState<"all" | "system" | "parsing" | "codegen" | "quality">("all");
+  const [sparkPower, setSparkPower] = useState<number>(15);
+
+  const THOUGHT_STEPS = [
+    { text: "Initializing Claude Sandboxed Compiler Core...", category: "system" as const, delay: 600 },
+    { text: "Structuring cognitive query context & verifying custom safety directives...", category: "system" as const, delay: 700 },
+    { text: "Detecting requested artifact layout: standard high-contrast document schema.", category: "parsing" as const, delay: 800 },
+    { text: "Scanning prompt intent for dynamic interactive capabilities (HTML/SVG/JS)...", category: "parsing" as const, delay: 900 },
+    { text: "Planning aesthetic design system: Space Grotesk displays + Inter paragraph spacing.", category: "parsing" as const, delay: 800 },
+    { text: "Drafting layout: generating grid-systems, custom CSS containers, and structural rules.", category: "codegen" as const, delay: 1000 },
+    { text: "Assembling document artifact: compiling React-compliant elements & classes...", category: "codegen" as const, delay: 1100 },
+    { text: "Injecting interactive triggers for responsive desktop-first resizing structures...", category: "codegen" as const, delay: 900 },
+    { text: "Parsing markup: validating correct markdown blocks, lists, and bold highlighting...", category: "quality" as const, delay: 800 },
+    { text: "Configuring Word XML layout templates and custom double-border letterheads...", category: "quality" as const, delay: 1000 },
+    { text: "Configuring high-fidelity PDF print layout vector configurations...", category: "quality" as const, delay: 800 },
+    { text: "Performing final integrity validation on generated source code elements...", category: "quality" as const, delay: 700 },
+    { text: "Releasing compiled document to live iframe viewport sandbox...", category: "system" as const, delay: 600 }
+  ];
+
+  useEffect(() => {
+    if (isLoading) {
+      setThinkingStep(0);
+      setSparkPower(15);
+      
+      const initialLogs = THOUGHT_STEPS.map((t, idx) => ({
+        ...t,
+        status: (idx === 0 ? "active" : "pending") as "completed" | "active" | "pending"
+      }));
+      setThinkingLogs(initialLogs);
+
+      let currentStep = 0;
+      let timerId: any;
+
+      const triggerNextStep = () => {
+        if (currentStep < THOUGHT_STEPS.length - 1) {
+          currentStep++;
+          setThinkingStep(currentStep);
+          setSparkPower(prev => Math.min(prev + Math.floor(Math.random() * 8) + 6, 99));
+          setThinkingLogs(prev => prev.map((log, lIdx) => {
+            if (lIdx < currentStep) return { ...log, status: "completed" as const };
+            if (lIdx === currentStep) return { ...log, status: "active" as const };
+            return log;
+          }));
+          
+          timerId = setTimeout(triggerNextStep, THOUGHT_STEPS[currentStep].delay);
+        } else {
+          setSparkPower(100);
+          setThinkingLogs(prev => prev.map(log => ({ ...log, status: "completed" as const })));
+        }
+      };
+
+      timerId = setTimeout(triggerNextStep, THOUGHT_STEPS[0].delay);
+
+      return () => {
+        clearTimeout(timerId);
+      };
+    } else {
+      setSparkPower(15);
+      setThinkingStep(0);
+    }
+  }, [isLoading]);
 
   // Generalized Document, Audio & Photo Upload States
   const [attachedFile, setAttachedFile] = useState<{
@@ -315,6 +383,154 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     });
   };
 
+  // Claude-Style Document & Code Artifact Parser and Renderer
+  const parseAndRenderContent = (content: string, messageIndex: number) => {
+    if (!content) return "";
+
+    // Match code blocks like ```javascript ... ```
+    const regex = /```(\w*)\n([\s\S]*?)```/g;
+    const parts: Array<{ type: "text" | "artifact"; content: string; language?: string; title?: string }> = [];
+    let lastIndex = 0;
+    let match;
+    let count = 1;
+
+    while ((match = regex.exec(content)) !== null) {
+      const matchIndex = match.index;
+      
+      // Push leading text part
+      if (matchIndex > lastIndex) {
+        parts.push({
+          type: "text",
+          content: content.substring(lastIndex, matchIndex)
+        });
+      }
+
+      const language = match[1] ? match[1].toLowerCase() : "text";
+      const codeContent = match[2];
+
+      // Smart title extraction from first two lines of code comments
+      let title = "";
+      const lines = codeContent.trim().split("\n");
+      if (lines.length > 0) {
+        const firstLine = lines[0].trim();
+        const secondLine = lines.length > 1 ? lines[1].trim() : "";
+        
+        const titleMatch = firstLine.match(/(?:title|name|subject|file)[:\-]\s*([^\n\*]+)/i) || 
+                           secondLine.match(/(?:title|name|subject|file)[:\-]\s*([^\n\*]+)/i) ||
+                           firstLine.match(/^#+\s*([^\n]+)/) ||
+                           firstLine.match(/^\/\/\s*(?:title|file|name)[:\-]\s*([^\n]+)/i) ||
+                           firstLine.match(/^<!--\s*(?:title|file|name)[:\-]\s*([^\n]+?)\s*-->/i);
+                           
+        if (titleMatch && titleMatch[1]) {
+          title = titleMatch[1].replace(/[#*_\-<>]/g, "").trim();
+        }
+      }
+
+      if (!title) {
+        // Fallback files named after the type of artifact
+        if (language === "html") title = `interactive_sandbox_${count}.html`;
+        else if (language === "svg") title = `vector_graphic_${count}.svg`;
+        else if (language === "markdown" || language === "md") title = `training_blueprint_${count}.md`;
+        else if (language === "json") title = `data_structure_${count}.json`;
+        else if (language === "javascript" || language === "js") title = `script_${count}.js`;
+        else if (language === "typescript" || language === "ts") title = `component_${count}.tsx`;
+        else if (language === "css") title = `styles_${count}.css`;
+        else title = `training_directive_${count}.txt`;
+      }
+
+      parts.push({
+        type: "artifact",
+        content: codeContent,
+        language,
+        title
+      });
+
+      count++;
+      lastIndex = regex.lastIndex;
+    }
+
+    // Push trailing text part
+    if (lastIndex < content.length) {
+      parts.push({
+        type: "text",
+        content: content.substring(lastIndex)
+      });
+    }
+
+    // Default return for standard simple text
+    if (parts.length === 0) {
+      return (
+        <div className="text-slate-100 font-sans tracking-wide font-medium leading-relaxed break-words whitespace-pre-wrap">
+          {formatMessageContent(content)}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3.5">
+        {parts.map((part, pIdx) => {
+          if (part.type === "text") {
+            const trimmed = part.content.trim();
+            if (!trimmed) return null;
+            return (
+              <div key={pIdx} className="text-slate-100 font-sans tracking-wide font-medium leading-relaxed break-words whitespace-pre-wrap">
+                {formatMessageContent(part.content)}
+              </div>
+            );
+          } else {
+            const isWeb = part.language === "html" || part.language === "svg";
+            const isDoc = part.language === "markdown" || part.language === "md" || part.language === "text";
+            
+            return (
+              <div 
+                key={pIdx}
+                onClick={() => onOpenArtifact(part.title || "UA_Directive", part.content, part.language)}
+                className="bg-[#0b101f] border-2 border-slate-800 hover:border-hero-gold p-4 rounded-xl flex items-center justify-between gap-4 transition-all duration-300 shadow-lg group cursor-pointer max-w-full my-3 hover:shadow-[0_0_15px_rgba(234,179,8,0.15)] animate-fadeIn select-none"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className={`p-2.5 rounded-lg border flex items-center justify-center flex-shrink-0 transition-colors ${
+                    isWeb 
+                      ? "bg-emerald-950/40 border-emerald-500/35 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black group-hover:border-black"
+                      : isDoc 
+                        ? "bg-blue-950/40 border-blue-500/35 text-blue-400 group-hover:bg-blue-500 group-hover:text-black group-hover:border-black"
+                        : "bg-hero-gold/10 border-hero-gold/30 text-hero-gold group-hover:bg-hero-gold group-hover:text-black group-hover:border-black"
+                  }`}>
+                    {isWeb ? (
+                      <Code2 className="w-5 h-5 animate-pulse" />
+                    ) : (
+                      <FileText className="w-5 h-5" />
+                    )}
+                  </div>
+                  
+                  <div className="text-left min-w-0">
+                    <h4 className="font-mono font-bold text-xs md:text-sm text-slate-100 group-hover:text-hero-gold truncate transition-colors tracking-wide">
+                      {part.title}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                      <span>Live Preview Sandbox</span>
+                      <span>•</span>
+                      <span className="uppercase text-[9px] bg-slate-800 text-slate-300 px-1 py-0.2 rounded font-bold tracking-wider">
+                        {part.language}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg bg-hero-dark group-hover:bg-hero-gold border border-slate-750 group-hover:border-black text-[10px] md:text-xs font-display font-black uppercase text-slate-300 group-hover:text-hero-dark flex items-center gap-1.5 transition-all flex-shrink-0 shadow active:translate-y-px"
+                >
+                  <Sparkles className="w-3.5 h-3.5 group-hover:animate-spin-slow" />
+                  <span>View Artifact</span>
+                </button>
+              </div>
+            );
+          }
+        })}
+      </div>
+    );
+  };
+
   // Dynamic placeholder text selection
   const getPlaceholder = () => {
     if (activeAttack === "detroit_smash") {
@@ -528,6 +744,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                       {/* Advanced Action Rails (Copy, Speak, Rate, Edit, Regenerate) */}
                       <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                        {/* Open as Document Artifact */}
+                        <button
+                          onClick={() => {
+                            const lines = msg.content.trim().split("\n");
+                            const titleLine = lines[0].replace(/[#*_\-]/g, "").trim();
+                            const displayTitle = titleLine.slice(0, 40) || `Heroic Blueprint #${index + 1}`;
+                            onOpenArtifact(displayTitle, msg.content);
+                          }}
+                          className="p-1 rounded bg-black/50 hover:bg-black/80 border border-slate-700/80 hover:border-hero-gold text-hero-gold hover:text-white transition-all flex items-center justify-center"
+                          title="Open/Convert to Official Document"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+
                         {/* Copy Action Button */}
                         <button
                           onClick={() => handleCopyMessage(msg.content, msg.id || String(index))}
@@ -751,8 +981,26 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <div className="text-slate-100 font-sans tracking-wide font-medium leading-relaxed break-words whitespace-pre-wrap">
-                          {formatMessageContent(msg.content)}
+                        <div className="w-full">
+                          {parseAndRenderContent(msg.content, index)}
+                          
+                          {/* Rich Document conversion CTA for longer assistant responses that don't already have artifacts */}
+                          {msg.content.length > 120 && !msg.content.includes("```") && (
+                            <div className="mt-3.5 pt-2.5 border-t border-slate-700/40 flex justify-end">
+                              <button
+                                onClick={() => {
+                                  const lines = msg.content.trim().split("\n");
+                                  const titleLine = lines[0].replace(/[#*_\-]/g, "").trim();
+                                  const displayTitle = titleLine.slice(0, 40) || `Hero Directive SOP-${index}`;
+                                  onOpenArtifact(displayTitle, msg.content, "text");
+                                }}
+                                className="text-[10px] font-display font-black uppercase text-hero-gold hover:text-white bg-hero-gold/10 hover:bg-hero-gold/20 border border-hero-gold/30 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm active:translate-y-0.5 cursor-pointer"
+                              >
+                                <Sparkles className="w-3 h-3 text-hero-gold animate-pulse" />
+                                <span>Convert & Open as UA Document</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -817,32 +1065,194 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           {/* Assistant is generating response loader */}
           {isLoading && (
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="flex gap-4 justify-start"
+              className="flex gap-4 justify-start w-full max-w-4xl"
             >
               <div className="flex-shrink-0">
                 <img
                   src={allMightAvatar}
                   alt="All Might charging"
                   referrerPolicy="no-referrer"
-                  className="w-10 h-10 rounded-full border-2 border-hero-gold animate-spin bg-hero-slate object-cover"
+                  className="w-10 h-10 rounded-full border-2 border-hero-gold animate-bounce bg-hero-slate object-cover shadow-[0_0_10px_rgba(234,179,8,0.3)]"
                 />
               </div>
 
-              <div className="flex flex-col">
-                <div className="p-4 rounded-2xl rounded-tl-none bg-hero-slate/80 border-2 border-dashed border-hero-gold text-slate-100 shadow-md">
-                  <div className="flex items-center gap-3">
-                    <div className="flex space-x-1">
-                      <div className="w-2.5 h-2.5 bg-hero-gold rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                      <div className="w-2.5 h-2.5 bg-hero-crimson rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                      <div className="w-2.5 h-2.5 bg-hero-blue rounded-full animate-bounce"></div>
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* Advanced Claude-Style Thinking Container */}
+                <div className="rounded-2xl rounded-tl-none bg-[#0b101f]/95 border-2 border-slate-800 shadow-xl overflow-hidden flex flex-col">
+                  
+                  {/* Title & Interactive Toggle Bar */}
+                  <div 
+                    onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                    className="px-4 py-3 bg-[#0d1428] border-b border-slate-800/80 flex items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-900/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-1.5 rounded-md bg-hero-gold/10 text-hero-gold flex items-center justify-center flex-shrink-0 border border-hero-gold/30">
+                        <Cpu className="w-4 h-4 animate-spin-slow" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-display font-black text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Thinking Process</span>
+                          <span className="text-[9px] font-mono bg-hero-gold/10 text-hero-gold px-1.5 py-0.2 rounded font-bold uppercase tracking-normal">
+                            Claude Schema
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">
+                          {thinkingStep < THOUGHT_STEPS.length 
+                            ? `Step ${thinkingStep + 1}/${THOUGHT_STEPS.length}: ${THOUGHT_STEPS[thinkingStep].text.slice(0, 45)}...`
+                            : "Compiling Artifact..."}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-hero-gold animate-pulse tracking-widest uppercase">
-                      Gathering One For All Spark...
-                    </span>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 text-right select-none">
+                        <span className="w-2 h-2 rounded-full bg-hero-gold animate-ping" />
+                        <span className="font-mono text-xs font-black text-hero-gold">{sparkPower}%</span>
+                      </div>
+                      <button className="text-slate-400 hover:text-white p-0.5 transition-colors">
+                        {isThinkingExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Progressive Core Power charging bar */}
+                  <div className="h-1 w-full bg-slate-950 relative">
+                    <div 
+                      className="absolute left-0 top-0 h-full bg-gradient-to-r from-hero-crimson via-hero-gold to-emerald-400 transition-all duration-300 shadow-[0_0_8px_#eab308]"
+                      style={{ width: `${sparkPower}%` }}
+                    />
+                  </div>
+
+                  {/* Expandable Panel */}
+                  <AnimatePresence initial={false}>
+                    {isThinkingExpanded ? (
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: "auto" }}
+                        exit={{ height: 0 }}
+                        className="overflow-hidden flex flex-col"
+                      >
+                        {/* Interactive filter and categorization controls */}
+                        <div className="px-4 py-2 bg-[#090e1b] border-b border-slate-900/90 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+                            <span className="text-[9px] font-display font-black text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
+                            {(["all", "system", "parsing", "codegen", "quality"] as const).map(tab => (
+                              <button
+                                key={tab}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setThinkingLogFilter(tab);
+                                }}
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-black uppercase tracking-wider transition-all select-none border cursor-pointer ${
+                                  thinkingLogFilter === tab
+                                    ? "bg-hero-gold text-hero-dark border-hero-gold shadow"
+                                    : "bg-slate-900/50 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                                }`}
+                              >
+                                {tab}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="hidden md:flex items-center gap-1.5 text-slate-500 font-mono text-[9px] uppercase">
+                            <Terminal className="w-3 h-3" />
+                            <span>COGNITIVE LOG STREAM</span>
+                          </div>
+                        </div>
+
+                        {/* Scrolling Console log viewport */}
+                        <div className="p-4 bg-[#070b14] max-h-56 overflow-y-auto custom-scroll font-mono text-[11px] leading-relaxed space-y-2 select-text border-b border-slate-900 text-left">
+                          {thinkingLogs
+                            .filter(log => thinkingLogFilter === "all" || log.category === thinkingLogFilter)
+                            .map((log, lIdx) => {
+                              const isActive = log.status === "active";
+                              const isCompleted = log.status === "completed";
+                              
+                              return (
+                                <div 
+                                  key={lIdx} 
+                                  className={`flex items-start gap-2.5 transition-colors duration-200 py-0.5 px-1.5 rounded ${
+                                    isActive 
+                                      ? "bg-hero-gold/5 text-hero-gold" 
+                                      : isCompleted 
+                                        ? "text-slate-300" 
+                                        : "text-slate-600 select-none"
+                                  }`}
+                                >
+                                  {/* Status Indicators */}
+                                  <div className="mt-1 flex-shrink-0">
+                                    {isCompleted ? (
+                                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+                                    ) : isActive ? (
+                                      <div className="w-2 h-2 rounded-full bg-hero-gold animate-ping shadow-[0_0_8px_#eab308]" />
+                                    ) : (
+                                      <div className="w-2 h-2 rounded-full bg-slate-800" />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`font-bold mr-1.5 uppercase text-[9px] ${
+                                      log.category === "system" 
+                                        ? "text-blue-400" 
+                                        : log.category === "parsing" 
+                                          ? "text-purple-400" 
+                                          : log.category === "codegen" 
+                                            ? "text-amber-400" 
+                                            : "text-emerald-400"
+                                    }`}>
+                                      [{log.category}]
+                                    </span>
+                                    <span>{log.text}</span>
+                                  </div>
+
+                                  {isActive && (
+                                    <span className="text-[8px] bg-hero-gold/10 border border-hero-gold/30 px-1 rounded font-bold animate-pulse text-hero-gold">
+                                      ACTIVE
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+
+                        {/* Interactive Motivational Tip Widget */}
+                        <div className="p-3 bg-[#0a0f1d] border-t border-slate-900 flex items-center gap-3 select-none">
+                          <div className="p-2 rounded-lg bg-hero-crimson/15 text-hero-crimson flex-shrink-0 border border-hero-crimson/30">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div className="text-left flex-1 min-w-0">
+                            <div className="text-[9px] font-display font-black uppercase text-hero-gold-bright tracking-widest">
+                              Symbol of Peace Guidance:
+                            </div>
+                            <p className="text-[10px] text-slate-300 leading-tight italic truncate">
+                              {thinkingStep < 3 
+                                ? "“First, map the query target boundaries. A clean strategy ensures a stellar result! PLUS ULTRA!”"
+                                : thinkingStep < 8 
+                                  ? "“Now, we build the reactive components! Make it modular, resilient, and visually polished!”"
+                                  : "“Perform final checks before deployment! The details are where actual craftsmanship resides!”"}
+                            </p>
+                          </div>
+                        </div>
+
+                      </motion.div>
+                    ) : (
+                      /* Minimized single-line status bar */
+                      <div 
+                        onClick={() => setIsThinkingExpanded(true)}
+                        className="px-4 py-2 bg-[#080c18] hover:bg-slate-900/30 text-[10px] font-mono text-slate-300 flex items-center justify-between gap-3 select-none cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Activity className="w-3.5 h-3.5 text-hero-gold animate-pulse" />
+                          <span>Active step: <strong className="text-hero-gold font-bold">{THOUGHT_STEPS[thinkingStep]?.text || "Processing..."}</strong></span>
+                        </span>
+                        <span className="text-slate-500 hover:text-slate-300 shrink-0">Click to expand details</span>
+                      </div>
+                    )}
+                  </AnimatePresence>
+
                 </div>
               </div>
             </motion.div>
