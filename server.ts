@@ -6,11 +6,8 @@ import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json({ limit: "50mb" })); // Support larger base64 image uploads
+const app = express();
+app.use(express.json({ limit: "50mb" })); // Support larger base64 image uploads
 
   let aiClient: GoogleGenAI | null = null;
   function getGeminiClient() {
@@ -164,24 +161,30 @@ ${custom_instructions || "None"}`;
     }
   });
 
-  // Serve static assets in production, use Vite middleware in development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+// Serve static assets in production, use Vite middleware in development
+async function startServer() {
+  if (!process.env.VERCEL) {
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[SERVER] Running at http://localhost:${PORT}`);
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[SERVER] Running at http://localhost:${PORT}`);
-  });
 }
 
 startServer();
+
+export default app;
