@@ -1,0 +1,6 @@
+{
+  "name": "All Might AI Chat",
+  "description": "An exclusive premium anime-themed chat assistant based on All Might from My Hero Academia, featuring elegant visual transitions and seamless integration.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

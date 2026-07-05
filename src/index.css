@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-hero-gold: #F59E0B;
+  --color-hero-gold-bright: #FCD34D;
+  --color-hero-crimson: #EF4444;
+  --color-hero-blue: #2563EB;
+  --color-hero-blue-dark: #1E3A8A;
+  --color-hero-dark: #060913;
+  --color-hero-slate: #0F172A;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-hero-dark);
+    color: #F8FAFC;
+    font-family: var(--font-sans);
+  }
+
+  /* Custom high-end scrollbar for anime look */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0A0F1D;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #F59E0B;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #EF4444;
+  }
+}
+
+/* Custom Anime Speed Lines Animation */
+@keyframes speedLines {
+  0% { transform: scale(1.02) translate(0, 0); opacity: 0.15; }
+  50% { transform: scale(1) translate(-1px, 1px); opacity: 0.25; }
+  100% { transform: scale(1.02) translate(0, 0); opacity: 0.15; }
+}
+
+.animate-speed-lines {
+  animation: speedLines 0.15s infinite linear;
+}
+
+/* Glowing text */
+.text-glow-gold {
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.6), 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 10px rgba(37, 99, 235, 0.6), 0 0 20px rgba(37, 99, 235, 0.4);
+}
+
+.text-glow-crimson {
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6), 0 0 20px rgba(239, 68, 68, 0.4);
+}
