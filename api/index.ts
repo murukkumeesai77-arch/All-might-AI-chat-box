@@ -125,32 +125,70 @@ ${custom_instructions || "None"}`;
 
     console.log(`[PROXY] Sending message to Lyzr API with model: ${model || "default"} for session: ${finalSessionId}`);
 
-    const response = await fetch("https://agent-prod.studio.lyzr.ai/v3/inference/chat/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey.trim()
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        agent_id: agentId,
-        session_id: finalSessionId,
-        message: finalPrompt
-      })
-    });
+    let lyzrSucceeded = false;
+    let replyText = "";
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[PROXY ERROR] Lyzr API returned ${response.status}: ${errorText}`);
-      return res.status(response.status).json({
-        error: `Lyzr API error: ${response.statusText}`,
-        details: errorText
+    try {
+      const response = await fetch("https://agent-prod.studio.lyzr.ai/v3/inference/chat/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey.trim()
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          agent_id: agentId,
+          session_id: finalSessionId,
+          message: finalPrompt
+        })
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[PROXY SUCCESS] Response received from Lyzr API`);
+        replyText = data.response || data.text || data.message || data.reply || "";
+        if (replyText) {
+          lyzrSucceeded = true;
+          return res.json(data);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`[PROXY WARNING] Lyzr API returned ${response.status}: ${errorText}. Falling back to Gemini...`);
+      }
+    } catch (err: any) {
+      console.error(`[PROXY WARNING] Lyzr API call failed: ${err.message}. Falling back to Gemini...`);
     }
 
-    const data = await response.json();
-    console.log(`[PROXY SUCCESS] Response received from Lyzr API`);
-    return res.json(data);
+    if (!lyzrSucceeded) {
+      console.log(`[PROXY FALLBACK] Activating Gemini 3.5 Flash fallback because Lyzr was unavailable or exhausted...`);
+      try {
+        const ai = getGeminiClient();
+        const systemInstruction = `You are All Might (Toshinori Yagi) from My Hero Academia, the No. 1 Hero and the Symbol of Peace.
+You must speak with endless energy, motivation, theatrical hero style, and absolute warmth.
+Use signature catchphrases such as "I AM HERE!", "Young hero!", "Plus Ultra!".
+Be an active, caring mentor.
+
+Apply the following direct student guidelines if specified:
+${custom_instructions || "None"}`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: finalPrompt || "Let's stand proud!",
+          config: {
+            systemInstruction,
+          },
+        });
+
+        replyText = response.text || "I was unable to fully channel the power. But remember, keep training!";
+        return res.json({ response: replyText });
+      } catch (geminiError: any) {
+        console.error("[GEMINI FALLBACK ERROR]", geminiError);
+        return res.status(500).json({
+          error: "Failed to fetch response. Both Lyzr Agent and Gemini fallback systems are offline.",
+          details: geminiError.message || geminiError,
+        });
+      }
+    }
   } catch (error: any) {
     console.error("[PROXY SYSTEM ERROR]", error);
     return res.status(500).json({
